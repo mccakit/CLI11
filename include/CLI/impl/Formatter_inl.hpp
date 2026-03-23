@@ -109,14 +109,19 @@ CLI11_INLINE std::string Formatter::make_usage(const App *app, std::string name)
 
     std::vector<std::string> groups = app->get_groups();
 
+    // Workaround for Clang GMF lambda mangling collision bug (llvm/llvm-project#53232):
+    // stateless lambdas with identical signatures inside a global module fragment get
+    // the same mangled name. Replace them with local named functors.
+    struct IsNonPositional { bool operator()(const Option *opt) const { return opt->nonpositional(); } };
+    struct IsPositional    { bool operator()(const Option *opt) const { return opt->get_positional(); } };
+
     // Print an Options badge if any options exist
-    std::vector<const Option *> non_pos_options =
-        app->get_options([](const Option *opt) { return opt->nonpositional(); });
+    std::vector<const Option *> non_pos_options = app->get_options(IsNonPositional{});
     if(!non_pos_options.empty())
         out << " [" << get_label("OPTIONS") << "]";
 
     // Positionals need to be listed here
-    std::vector<const Option *> positionals = app->get_options([](const Option *opt) { return opt->get_positional(); });
+    std::vector<const Option *> positionals = app->get_options(IsPositional{});
 
     // Print out positionals if any are left
     if(!positionals.empty()) {
